@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TechForge Studio - Real-Time Object Counter</title>
+<style>
+  body {
+    background: #0d0d0d;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 20px;
+  }
+  h1 { color: #00ffff; }
+  #container {
+    position: relative;
+    display: inline-block;
+  }
+  video {
+    position: absolute;
+    top: -9999px;
+  }
+  #output {
+    border: 2px solid #00ffff;
+    border-radius: 8px;
+  }
+  #dashboard {
+    margin-top: 15px;
+    background: #1a1a1a;
+    padding: 15px;
+    border-radius: 10px;
+    display: inline-block;
+    min-width: 250px;
+  }
+  #dashboard h3 { color: #00ffff; margin-top: 0; }
+  .count-item { text-align: left; padding: 3px 0; }
+</style>
+</head>
+<body>
+
+<h1>TechForge Studio</h1>
+<p>Real-Time Object Counter (Full Stack)</p>
+
+<div id="container">
+  <video id="video" width="640" height="480" autoplay muted playsinline></video>
+  <img id="output" width="640" height="480" />
+</div>
+
+<div id="dashboard">
+  <h3>Live Counts</h3>
+  <div id="counts">Waiting for detection...</div>
+  <p><strong>Total: <span id="total">0</span></strong></p>
+</div>
+
+<script>
+const video = document.getElementById('video');
+const output = document.getElementById('output');
+const countsDiv = document.getElementById('counts');
+const totalSpan = document.getElementById('total');
+
+navigator.mediaDevices.getUserMedia({ video: true })
+  .then(stream => {
+    video.srcObject = stream;
+    video.play();
+  })
+  .catch(err => alert("Camera error: " + err));
+
+const captureCanvas = document.createElement('canvas');
+captureCanvas.width = 640;
+captureCanvas.height = 480;
+const captureCtx = captureCanvas.getContext('2d');
+
+async function detectFrame() {
+  captureCtx.drawImage(video, 0, 0, 640, 480);
+  const imageData = captureCanvas.toDataURL('image/jpeg', 0.6);
+
+  try {
+    const response = await fetch('http://127.0.0.1:5000/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageData })
+    });
+    const result = await response.json();
+
+    output.src = result.image;
+
+    countsDiv.innerHTML = Object.entries(result.counts)
+      .map(([label, count]) => `<div class="count-item">${label}: ${count}</div>`)
+      .join('');
+    totalSpan.textContent = result.total;
+  } catch (err) {
+    console.error("Detection error:", err);
+  }
+
+  requestAnimationFrame(detectFrame);
+}
+
+video.addEventListener('loadeddata', () => {
+  detectFrame();
+});
+</script>
+
+</body>
+</html>
